@@ -1,0 +1,34 @@
+# Key material. Keystores hold private keys and must never be committed.
+# Generate your own with keytool, see the README.
+document-timestamping-api/src/main/resources/cipher/
+*.p12
+*.jks
+*.key
+*.pem
+
+# Local secrets
+.env
+.env.local
+
+# Uploaded documents
+document-timestamping-api/upload-dir/
+
+# Build output
+target/
+build/
+out/
+*.class
+
+# Dependencies
+node_modules/
+
+# IDE
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db

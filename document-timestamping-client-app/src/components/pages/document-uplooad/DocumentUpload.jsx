@@ -186,7 +186,7 @@ const DocumentUpload = () => {
               />
             </div>
 
-            <div className="card shadow-lg bg-body rounded ps-4 pe-4 pb-3">
+            <div className="card shadow-lg bg-body rounded ps-4 pe-4 pb-3 mb-2">
               <div className="card-body"></div>
               <h3 className="text-primary">Driver code</h3>
               <p>

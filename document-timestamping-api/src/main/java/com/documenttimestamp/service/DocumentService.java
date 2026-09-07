@@ -9,19 +9,22 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.security.MessageDigest;
 import java.sql.Timestamp;
-import java.util.Base64;
 import java.util.List;
-import java.util.Optional;
 
 @Service
 public class DocumentService {
     private final DocumentRepository documentRepository;
+    private final CipherUtility cipherUtility;
+    private final SecureKeysManager secureKeysManager;
     private final String hashingAlgorithm = "SHA-512";
-    private final String pkString = "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAojL8zi8cAKK/poLWWE01agKwq0dA6UJPOtQbv6u+eKzT71u63zhF0NLE+qVRT4AjhhIjfg6tBcF6LWkYOQPWKUlAPIrBU0KCB6nmPJBy5XdjiVcTLXlNLrelsx6OiB5ba9G2uWK914pu52QXsZUE9613Lnu00Ni+4ntlKTjtNsWTMy4FPsbbZPrH4SKXSvnm9xnVwbcAfZ7aC4OXOiYeWf10goSPS4FQAMyHzC+hT4wzbRuK8geikBC1J1mgue1a1mOR5Cd6ssHizATepU5EPYz3eSCwji7MNNv1hjJuJRgtC7aS4gX5hnaUPUNORZ+zJQTWCmFiA/dDnNj7UXrQqQIDAQAB";
 
     @Autowired
-    public DocumentService(DocumentRepository documentRepository) {
+    public DocumentService(DocumentRepository documentRepository,
+                           CipherUtility cipherUtility,
+                           SecureKeysManager secureKeysManager) {
         this.documentRepository = documentRepository;
+        this.cipherUtility = cipherUtility;
+        this.secureKeysManager = secureKeysManager;
     }
 
     public List<Document> getDocuments(){
@@ -42,7 +45,7 @@ public class DocumentService {
                     (shaDigest, messageHash, ts);
 
             // Encode message
-            byte[] cipheredMessage = CipherUtility.signDocumentHash(messageAndTimestampHash);
+            byte[] cipheredMessage = cipherUtility.signDocumentHash(messageAndTimestampHash);
 
             // Write document data to database
             Document d = new Document();
@@ -50,7 +53,7 @@ public class DocumentService {
             d.setEncryptedHash(BytesHexConverter.bytesToHex(cipheredMessage));
             d.setDocumentChecksum(BytesHexConverter.bytesToHex(messageHash));
             d.setTargetHash(BytesHexConverter.bytesToHex(messageAndTimestampHash));
-            d.setPublicKey(pkString);
+            d.setPublicKey(secureKeysManager.getEncodedPublicKey());
             d.setTimestamp(ts.getTime());
             documentRepository.save(d);
 
@@ -74,7 +77,7 @@ public class DocumentService {
         if (d.isEmpty()) {
             return null;
         }
-        d.get().setPublicKey(pkString);
+        d.get().setPublicKey(secureKeysManager.getEncodedPublicKey());
         return d.get();
     }
 }

@@ -1,24 +1,33 @@
 package com.documenttimestamp.timestamping;
 
+import org.springframework.stereotype.Component;
+
 import javax.crypto.Cipher;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 
-public final class CipherUtility {
-    private static final String password = "REDACTED";
+@Component
+public class CipherUtility {
+    private static final String TRANSFORMATION = "RSA";
 
-    public static byte[] signDocumentHash(byte[] messageHash) throws Exception{
-        PrivateKey privateKey = SecureKeysManager.getPrivateKey();
+    private final SecureKeysManager secureKeysManager;
 
-        Cipher cipher = Cipher.getInstance("RSA");
+    public CipherUtility(SecureKeysManager secureKeysManager) {
+        this.secureKeysManager = secureKeysManager;
+    }
+
+    public byte[] signDocumentHash(byte[] messageHash) throws Exception {
+        PrivateKey privateKey = secureKeysManager.getPrivateKey();
+
+        Cipher cipher = Cipher.getInstance(TRANSFORMATION);
         cipher.init(Cipher.ENCRYPT_MODE, privateKey);
         return cipher.doFinal(messageHash);
     }
 
-    public static byte[] getDecryptedDocumentHash(byte[] encryptedMessageHash) throws Exception {
-        PublicKey publicKey = SecureKeysManager.getPublicKey();
+    public byte[] getDecryptedDocumentHash(byte[] encryptedMessageHash) throws Exception {
+        PublicKey publicKey = secureKeysManager.getPublicKey();
 
-        Cipher cipher = Cipher.getInstance("RSA");
+        Cipher cipher = Cipher.getInstance(TRANSFORMATION);
         cipher.init(Cipher.DECRYPT_MODE, publicKey);
         return cipher.doFinal(encryptedMessageHash);
     }
