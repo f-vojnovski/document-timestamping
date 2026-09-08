@@ -25,6 +25,11 @@ import java.util.Base64;
  * are cached. Signing a document reads both, so without the cache every request
  * paid for two PKCS#12 loads. The certificate's validity is still checked on each
  * call to getPublicKey, so an expiry that passes while the process runs is caught.
+ *
+ * The cache lives for the process, so rotating the keystore on disk takes effect
+ * on the next restart rather than immediately. That suits a service that restarts
+ * to rotate; a long-running deployment that swaps keys in place would reload the
+ * cache on a timer or when the file's timestamp changes.
  */
 @Component
 public class SecureKeysManager {

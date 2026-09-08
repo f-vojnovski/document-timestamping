@@ -305,6 +305,11 @@ server.
 
 Errors return a JSON body with `status`, `error` and a `message` explaining what went wrong.
 
+This is a demonstrative university project, so the API is intentionally open. Anyone can
+submit a document to be timestamped, which is the point of a public timestamping service,
+and there is no per-user data to protect. Authentication, rate limiting and storage quotas
+are out of scope here and would be added before a real deployment.
+
 ## Web client
 
 The React app handles uploading and verifying. Pick a file, give it a title, and press Upload
