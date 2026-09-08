@@ -10,6 +10,7 @@ import java.security.KeyStore;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.cert.Certificate;
+import java.security.cert.X509Certificate;
 import java.util.Base64;
 
 /**
@@ -59,6 +60,11 @@ public class SecureKeysManager {
         if (certificate == null) {
             throw new IllegalStateException(
                     "No certificate under alias '" + certificateAlias + "' in " + truststoreLocation);
+        }
+        if (certificate instanceof X509Certificate) {
+            // A timestamp signed by an expired certificate is not worth issuing, so this
+            // is checked on the way out rather than left for the client to discover.
+            ((X509Certificate) certificate).checkValidity();
         }
         return certificate.getPublicKey();
     }

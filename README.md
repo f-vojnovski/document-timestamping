@@ -49,17 +49,18 @@ since the client is the one with a reason to misreport it.
 ### 3. Bind the document to the time
 
 `FileTimestamp.hashFileWithTimestamp` writes the 64-byte checksum into a byte stream, appends
-the timestamp, and runs SHA-512 over the combined buffer. The result is a single hash covering
-both the document and the moment it arrived. In the current implementation the appended value
-is `Long.byteValue()` of the epoch milliseconds, so one byte of the clock reading enters the
-digest; the full millisecond value is stored and returned to the client alongside it.
+all eight bytes of the epoch millisecond value in big-endian order, and runs SHA-512 over the
+combined buffer. The result is a single hash covering both the document and the moment it
+arrived, to the millisecond. Any client recomputing this has to lay the bytes out the same
+way, so the encoding is fixed in that method and mirrored in the verifier the web client
+generates.
 
 ### 4. Sign the combined hash
 
-`CipherUtility.signDocumentHash` runs the combined hash through an RSA cipher in encrypt mode
-using the private key from the keystore. A 2048-bit key turns the 64-byte hash into a 256-byte
-signature. Knowing the algorithm and holding the public key is not enough to repeat this step;
-that requires the private key.
+`CipherUtility.signDocumentHash` signs the combined hash with `java.security.Signature` using
+`SHA512withRSA` and the private key from the keystore. A 2048-bit key produces a 256-byte
+signature, in the standard PKCS#1 form other libraries expect. Knowing the algorithm and
+holding the public key is not enough to repeat this step; that requires the private key.
 
 ### 5. Persist and respond
 
@@ -68,21 +69,22 @@ hash and the timestamp. The public key is marked `@Transient`: it travels to the
 response but is not a database column, because it is derived from the certificate rather than
 owned by the row.
 
-The client receives the signed hash, the timestamp, the public key from the certificate and
-the hashing algorithm, which together cover everything needed to check the proof without the
-server.
-
 ### Response
+
+The client gets back the signature, the timestamp, the public key from the certificate and
+the names of both algorithms, which is the full set needed to check the proof later.
 
 ```json
 {
   "id": 1,
   "title": "Ducks research paper",
-  "encryptedHash": "4635E7D8B530DB59511316244E2AAC4D...",
+  "encryptedHash": "39DB5F85DF6EBF3E18818B18FD232FFA...",
   "documentChecksum": "EAF7542ADE2C338D8D2CC76FCBF883E6...",
-  "targetHash": "3A20068924764C1AE4168785EE92DBE9...",
-  "timestamp": 1788823767103,
-  "publicKey": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAojL8zi8c..."
+  "targetHash": "E201DF538216462F33720C9E4B56AB24...",
+  "timestamp": 1788825888422,
+  "publicKey": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAmjqVu6L3...",
+  "signatureAlgorithm": "SHA512withRSA",
+  "hashingAlgorithm": "SHA-512"
 }
 ```
 
@@ -91,8 +93,10 @@ server.
 | `documentChecksum` | SHA-512 of the file on its own |
 | `timestamp` | Epoch milliseconds read from the server clock |
 | `targetHash` | SHA-512 of the checksum combined with the timestamp |
-| `encryptedHash` | `targetHash` signed with the RSA private key |
+| `encryptedHash` | The signature over `targetHash` |
 | `publicKey` | Base64 X.509 public key, read from the certificate |
+| `signatureAlgorithm` | Algorithm to verify the signature with |
+| `hashingAlgorithm` | Digest used for both hashing steps |
 
 This response is the proof, so save it somewhere safe.
 
@@ -104,17 +108,18 @@ classes that run on the user's own machine and let a proof be checked when the s
 unavailable.
 
 `ChecksumGenerator` rebuilds `targetHash` from scratch: it reads the document off disk, hashes
-it with SHA-512, applies the timestamp the same way the server did, and prints the result.
-That gives the combined hash this file should produce at the claimed time.
+it with SHA-512, applies the timestamp the same way the server did, and prints both the plain
+checksum and the combined hash. It takes an optional file path and timestamp as arguments, so
+one copy can check any document.
 
-`Main` opens the signature. It decodes the Base64 public key through `X509EncodedKeySpec` and
-`KeyFactory`, decrypts `encryptedHash` with an RSA cipher in decrypt mode, and compares the
-recovered bytes against `targetHash`. It prints `KEYS MATCH - OK!` or `DOCUMENT NOT VALID!`.
+`Main` checks the signature. It decodes the Base64 public key through `X509EncodedKeySpec` and
+`KeyFactory`, then verifies `encryptedHash` against `targetHash` with `SHA512withRSA`. It
+prints `SIGNATURE VALID - OK!` or `DOCUMENT NOT VALID!`.
 
 Run both and compare against the response. A matching `targetHash` from `ChecksumGenerator`
-means the document on disk is the one that was uploaded. The same `targetHash` recovered by
-`Main` from the signature means it was signed by the private key behind the certificate.
-Neither check contacts the server.
+means the document on disk is the one that was uploaded. A valid signature from `Main` means
+that hash was signed by the private key behind the certificate. Neither check contacts the
+server.
 
 The web client writes both files with the correct values already filled in, so verification
 comes down to compiling and running them. `sample.pdf` ships with the module as a document to
@@ -124,16 +129,19 @@ try it against.
 $ javac com/ib/*.java
 
 $ java com.ib.ChecksumGenerator
-3A20068924764C1AE4168785EE92DBE9261E43DC2160A4DE68C4326B8412386989B03F77AEDEDB63F7163B173AC1F1F3D765F15E196EA5771CE34CB36538DD8D
+DOCUMENT CHECKSUM:
+EAF7542ADE2C338D8D2CC76FCBF883E62C31336E60CB236F86ED66C8154EA9FB836FD88367880911529BDAFED0E76CD34272123A4D656DB61B120B95EAA3E069
+DOCUMENT + TIMESTAMP HASH:
+E201DF538216462F33720C9E4B56AB248425B3493D277F1F95FDD1D21DBFFF78046D93EDCD832BC3033179F4C55A4E9721F98ED15B1BF9DB0A9F9E9C604E4CDA
 
 $ java com.ib.Main
-DECRYPTED HASH:
-3A20068924764C1AE4168785EE92DBE9261E43DC2160A4DE68C4326B8412386989B03F77AEDEDB63F7163B173AC1F1F3D765F15E196EA5771CE34CB36538DD8D
-KEYS MATCH - OK!
+ALGORITHM: SHA512withRSA
+TARGET HASH: E201DF538216462F33720C9E4B56AB248425B3493D277F1F95FDD1D21DBFFF78046D93EDCD832BC3033179F4C55A4E9721F98ED15B1BF9DB0A9F9E9C604E4CDA
+SIGNATURE VALID - OK!
 ```
 
-Change a single byte of the document and `ChecksumGenerator` prints a completely different
-hash, which no longer matches what the signature opens to.
+Change a single byte of the document, or shift the timestamp by a single millisecond, and
+`ChecksumGenerator` prints a completely different hash that the signature will not match.
 
 ## Verifying against the API
 
@@ -149,9 +157,9 @@ from an X.509 certificate. Splitting them into two stores keeps the roles clear:
 holds the private key and stays on the server, the truststore holds only the certificate and
 is safe to distribute.
 
-The certificate does more than carry a public key. If a hash decrypts correctly under a public
-key issued by a Certificate Authority and matches the expected hash, the message is
-established as signed by the holder of that certificate. The certificate generated below is
+The certificate does more than carry a public key. If a signature verifies under a public key
+issued by a Certificate Authority, the message is established as signed by the holder of that
+certificate, and the CA vouches for who that holder is. The certificate generated below is
 self-signed, which is fine for running the project; moving to a CA-issued certificate or a
 full chain needs a different keystore, not different code.
 
@@ -161,6 +169,10 @@ any Spring resource prefix: `classpath:` while developing, `file:` for a keystor
 outside the jar. The public key sent to clients is read from the certificate at request time,
 so generating a new keystore is all it takes for the generated verifier code to work against
 it.
+
+Certificate expiry is checked before every signature. A timestamp issued under an expired
+certificate is not worth holding, so the request fails with a 500 rather than handing back a
+proof that will not stand up later.
 
 `BytesHexConverter` handles the hex encoding used for every hash that crosses into the
 database or out to the client.
@@ -250,6 +262,19 @@ npm install
 npm start
 ```
 
+### Tests
+
+```bash
+cd document-timestamping-api
+./mvnw test
+```
+
+The suite runs against an in-memory H2 database and generates its key pairs at runtime, so it
+needs no PostgreSQL instance, no keystore on disk and no environment variables. It covers the
+timestamp encoding, the hex conversion, signing and verification, and the full service
+pipeline including an offline recomputation of `targetHash` in the same way the client does
+it.
+
 ### Configuration
 
 | Variable | Default | Purpose |
@@ -270,10 +295,12 @@ Uploads are capped at 5 MB per file and 6 MB per request.
 
 ## API
 
-| Method | Path | Body | Returns |
-| --- | --- | --- | --- |
-| `POST` | `/api/v1/documents/` | `title`, `file` | The document record with its proof |
-| `POST` | `/api/v1/documents/verify` | `file` | The stored record if the checksum is known |
+| Method | Path | Body | Success | Failure |
+| --- | --- | --- | --- | --- |
+| `POST` | `/api/v1/documents/` | `title`, `file` | `201` with the record and its proof | `400` missing title or empty file, `500` signing or keystore failure |
+| `POST` | `/api/v1/documents/verify` | `file` | `200` with the stored record | `400` empty file, `404` checksum not on record |
+
+Errors return a JSON body with `status`, `error` and a `message` explaining what went wrong.
 
 ## Web client
 
@@ -282,19 +309,23 @@ to send it to the API.
 
 The response is rendered as readable fields with a button to copy the whole payload. Below
 that, the app generates the two Java classes described above with the signature, timestamp,
-public key and target hash already filled in, each behind show/hide and copy controls.
+public key, signature algorithm and target hash already filled in, each behind show/hide and
+copy controls. Failed requests show the message the API returned rather than leaving the
+screen unchanged.
 
 ## Layout
 
 ```
 document-timestamping-api/
   src/main/java/com/documenttimestamp/
-    api/           DocumentController
-    service/       DocumentService
+    api/           DocumentController, ApiExceptionHandler
+    service/       DocumentService, DocumentNotFoundException
     repository/    DocumentRepository
     model/         Document
     timestamping/  FileChecksumCalculator, TimestampingUtility, FileTimestamp,
                    CipherUtility, SecureKeysManager, BytesHexConverter
+  src/test/java/   FileTimestampTest, CipherUtilityTest, BytesHexConverterTest,
+                   DocumentServiceTest
 document-timestamping-client-app/
   src/components/  DocumentUpload, DocumentHashData, CodeDisplay
   src/util/        DriverCodeGenerator, ChecksumCodeGenerator

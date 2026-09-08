@@ -27,9 +27,17 @@ const DocumentHashData = (props) => {
       <div className="row">
         <div className="col">
           <span className="text-primary">
-            Encrypted hash:{" "}
+            Signature:{" "}
           </span>
           <span>{props.encryptedHash}</span>
+        </div>
+      </div>
+      <div className="row">
+        <div className="col">
+          <span className="text-primary">
+            Signature algorithm:{" "}
+          </span>
+          <span>{props.signatureAlgorithm}</span>
         </div>
       </div>
       <div className="row">

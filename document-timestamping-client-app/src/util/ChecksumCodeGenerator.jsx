@@ -1,13 +1,16 @@
 export default function generateChecksumCode(timestamp) {
     return `package com.ib;
-  
+
 import java.io.ByteArrayOutputStream;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.sql.Timestamp;
 
+// Recomputes the document-plus-timestamp hash offline, the same way the server did.
+// Usage: java com.ib.ChecksumGenerator [filePath] [timestampMillis]
 public class ChecksumGenerator {
     private final static String hashingAlgorithm = "SHA-512";
     private final static Long documentTimestamp = ${timestamp}L;
@@ -15,19 +18,26 @@ public class ChecksumGenerator {
 
     public static void main(String args[]) {
         try {
+            String path = args.length > 0 ? args[0] : filePath;
+            long ts = args.length > 1 ? Long.parseLong(args[1]) : documentTimestamp;
+
             // digest message
             MessageDigest shaDigest = MessageDigest.getInstance(hashingAlgorithm);
-            InputStream inputStream = new FileInputStream(filePath);
+            InputStream inputStream = new FileInputStream(path);
 
             // Hash initial message
             byte[] messageHash = getFileChecksum(shaDigest, inputStream);
 
             // Apply timestamp
-            Timestamp timestamp = new Timestamp(documentTimestamp);
+            Timestamp timestamp = new Timestamp(ts);
 
             // Hash file with timestamp
-            byte[] encryptedMessageHash = hashFileWithTimestamp(shaDigest, messageHash, timestamp);
-            System.out.println(bytesToHex(encryptedMessageHash));
+            byte[] messageAndTimestampHash = hashFileWithTimestamp(shaDigest, messageHash, timestamp);
+
+            System.out.println("DOCUMENT CHECKSUM:");
+            System.out.println(bytesToHex(messageHash));
+            System.out.println("DOCUMENT + TIMESTAMP HASH:");
+            System.out.println(bytesToHex(messageAndTimestampHash));
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -47,12 +57,14 @@ public class ChecksumGenerator {
         return digest.digest();
     }
 
+    // The timestamp goes in as all eight bytes of the epoch millisecond value,
+    // big-endian, which is the layout the server uses.
     public static byte[] hashFileWithTimestamp(MessageDigest digest, byte[] fileHash, Timestamp ts) throws Exception{
-        Long timeInMillis = ts.getTime();
+        long timeInMillis = ts.getTime();
 
         ByteArrayOutputStream bytesOs = new ByteArrayOutputStream( );
         bytesOs.write(fileHash);
-        bytesOs.write(timeInMillis.byteValue());
+        bytesOs.write(ByteBuffer.allocate(Long.BYTES).putLong(timeInMillis).array());
 
         byte[] bytes = bytesOs.toByteArray();
 
@@ -70,4 +82,3 @@ public class ChecksumGenerator {
     }
 }
 `;}
-  

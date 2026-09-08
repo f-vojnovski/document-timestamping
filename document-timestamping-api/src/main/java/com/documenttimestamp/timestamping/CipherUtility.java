@@ -2,13 +2,21 @@ package com.documenttimestamp.timestamping;
 
 import org.springframework.stereotype.Component;
 
-import javax.crypto.Cipher;
 import java.security.PrivateKey;
 import java.security.PublicKey;
+import java.security.Signature;
 
+/**
+ * Produces and checks RSA signatures over the document-plus-timestamp hash.
+ *
+ * This uses java.security.Signature with SHA512withRSA rather than running the hash
+ * through a Cipher with the private key. Signature applies the padding and digest
+ * rules a signature scheme is supposed to apply, and it is the interoperable form:
+ * any library on any platform can verify the result.
+ */
 @Component
 public class CipherUtility {
-    private static final String TRANSFORMATION = "RSA";
+    public static final String SIGNATURE_ALGORITHM = "SHA512withRSA";
 
     private final SecureKeysManager secureKeysManager;
 
@@ -19,16 +27,18 @@ public class CipherUtility {
     public byte[] signDocumentHash(byte[] messageHash) throws Exception {
         PrivateKey privateKey = secureKeysManager.getPrivateKey();
 
-        Cipher cipher = Cipher.getInstance(TRANSFORMATION);
-        cipher.init(Cipher.ENCRYPT_MODE, privateKey);
-        return cipher.doFinal(messageHash);
+        Signature signature = Signature.getInstance(SIGNATURE_ALGORITHM);
+        signature.initSign(privateKey);
+        signature.update(messageHash);
+        return signature.sign();
     }
 
-    public byte[] getDecryptedDocumentHash(byte[] encryptedMessageHash) throws Exception {
+    public boolean verifyDocumentHash(byte[] messageHash, byte[] signatureBytes) throws Exception {
         PublicKey publicKey = secureKeysManager.getPublicKey();
 
-        Cipher cipher = Cipher.getInstance(TRANSFORMATION);
-        cipher.init(Cipher.DECRYPT_MODE, publicKey);
-        return cipher.doFinal(encryptedMessageHash);
+        Signature signature = Signature.getInstance(SIGNATURE_ALGORITHM);
+        signature.initVerify(publicKey);
+        signature.update(messageHash);
+        return signature.verify(signatureBytes);
     }
 }

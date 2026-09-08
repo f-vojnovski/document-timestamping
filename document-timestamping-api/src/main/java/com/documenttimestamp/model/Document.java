@@ -35,6 +35,16 @@ public class Document {
 
     private Long timestamp;
 
+    /**
+     * Sent to the client so it can verify, never stored. These describe the
+     * certificate and the algorithms in force when the document was signed.
+     */
     @Transient
     private String publicKey;
+
+    @Transient
+    private String signatureAlgorithm;
+
+    @Transient
+    private String hashingAlgorithm;
 }

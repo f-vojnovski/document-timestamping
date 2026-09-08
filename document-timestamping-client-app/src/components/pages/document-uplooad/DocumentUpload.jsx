@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import axios from "axios";
 import DocumentHashData from "../../hash-data/DocumentHashData";
 import generateDriverCode from "../../../util/DriverCodeGenerator";
@@ -25,11 +25,18 @@ const DocumentUpload = () => {
     setSelectedFile(file);
   };
 
+  // The API reports failures with a status code and a message, so surface that
+  // instead of leaving the user staring at an unchanged screen.
+  const reportError = (error, fallback) => {
+    setResponse(null);
+    setFormError(error?.response?.data?.message ?? fallback);
+  };
+
   const onFormSubmitted = (event) => {
     if (
       documentTitle == null ||
       selectedFile == null ||
-      documentTitle.length == 0
+      documentTitle.length === 0
     ) {
       setFormError(
         "Make sure to add a title and upload a file"
@@ -51,10 +58,10 @@ const DocumentUpload = () => {
 
     axios(config)
       .then(function (response) {
-        setResponse(response);
+        setResponse(response.data);
       })
       .catch(function (error) {
-        console.log(error);
+        reportError(error, "Could not timestamp the document.");
       });
   };
 
@@ -77,10 +84,13 @@ const DocumentUpload = () => {
 
     axios(config)
       .then(function (response) {
-        setResponse(response);
+        setResponse(response.data);
       })
       .catch(function (error) {
-        console.log(error);
+        reportError(
+          error,
+          "No timestamp on record for this document."
+        );
       });
   };
 
@@ -173,16 +183,17 @@ const DocumentUpload = () => {
                 Document Hash Data
               </h3>
               <DocumentHashData
-                id={response.data.id}
-                title={response.data.title}
-                encryptedHash={response.data.encryptedHash}
-                checksum={response.data.documentChecksum}
-                timestamp={response.data.timestamp}
-                checksumWithTimestamp={
-                  response.data.targetHash
+                id={response.id}
+                title={response.title}
+                encryptedHash={response.encryptedHash}
+                checksum={response.documentChecksum}
+                timestamp={response.timestamp}
+                checksumWithTimestamp={response.targetHash}
+                pk={response.publicKey}
+                signatureAlgorithm={
+                  response.signatureAlgorithm
                 }
-                pk={response.data.publicKey}
-                copyData={JSON.stringify(response.data)}
+                copyData={JSON.stringify(response)}
               />
             </div>
 
@@ -197,9 +208,10 @@ const DocumentUpload = () => {
               </p>
               <CodeDisplay
                 code={generateDriverCode(
-                  response.data.encryptedHash,
-                  response.data.publicKey,
-                  response.data.targetHash
+                  response.encryptedHash,
+                  response.publicKey,
+                  response.targetHash,
+                  response.signatureAlgorithm
                 )}
               />
             </div>
@@ -221,6 +233,13 @@ const DocumentUpload = () => {
                   response.timestamp
                 )}
               />
+              <p className="mb-0">
+                Run <strong>ChecksumGenerator</strong> first,
+                then <strong>Main</strong>. The
+                document + timestamp hash printed by the
+                first must match the target hash the second
+                verifies.
+              </p>
             </div>
           </div>
         )}

@@ -1,32 +1,34 @@
-export default function generateDriverCode(encryptedHash, pk, targetHash) {
+export default function generateDriverCode(signatureHex, pk, targetHash, signatureAlgorithm) {
 return `package com.ib;
 
-import javax.crypto.Cipher;
 import java.security.*;
 import java.security.spec.X509EncodedKeySpec;
 import java.util.Base64;
 
 
-// This is the code that the client does to verify a signature
-// This class does not need to exist for the project to work
+// Checks the server's signature over the document-plus-timestamp hash, using nothing
+// but the public key. Run ChecksumGenerator first to confirm targetHash really is the
+// hash of your document at the claimed time.
 public class Main {
-    private static final String encryptedMessageHash = "${encryptedHash}";
+    private static final String signatureAlgorithm = "${signatureAlgorithm || "SHA512withRSA"}";
+    private static final String signatureHex = "${signatureHex}";
     private static final String keyString = "${pk}";
     private static final String targetHash = "${targetHash}";
 
     public static void main (String args[]) {
         try {
-            var publicKey = getKey(keyString);
-            byte[] encryptedBytes = hexStringToByteArray(encryptedMessageHash);
-            Cipher cipher = Cipher.getInstance("RSA");
-            cipher.init(Cipher.DECRYPT_MODE, publicKey);
-            byte[] decryptedMessageHash = cipher.doFinal(encryptedBytes);
+            PublicKey publicKey = getKey(keyString);
 
-            String decryptedStr = bytesToHex(decryptedMessageHash);
-            System.out.println("DECRYPTED HASH:");
-            System.out.println(bytesToHex(decryptedMessageHash));
-            if (decryptedStr.equals(targetHash))  {
-                System.out.println("KEYS MATCH - OK!");
+            Signature signature = Signature.getInstance(signatureAlgorithm);
+            signature.initVerify(publicKey);
+            signature.update(hexStringToByteArray(targetHash));
+
+            boolean valid = signature.verify(hexStringToByteArray(signatureHex));
+
+            System.out.println("ALGORITHM: " + signatureAlgorithm);
+            System.out.println("TARGET HASH: " + targetHash);
+            if (valid)  {
+                System.out.println("SIGNATURE VALID - OK!");
             } else {
                 System.out.println("DOCUMENT NOT VALID!");
             }
