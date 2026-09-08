@@ -290,8 +290,11 @@ it.
 | `TRUSTSTORE_PASSWORD` | falls back to `KEYSTORE_PASSWORD` | Truststore password |
 | `TRUSTSTORE_TYPE` | `PKCS12` | Truststore format |
 | `TRUSTSTORE_CERTIFICATE_ALIAS` | `receiverKeyPair` | Alias of the certificate entry |
+| `APP_CORS_ALLOWED_ORIGINS` | `http://localhost:3000` | Browser origins allowed to call the API, comma-separated |
 
-Uploads are capped at 5 MB per file and 6 MB per request.
+Uploads are capped at 5 MB per file and 6 MB per request. The API accepts browser requests
+only from the origins in `APP_CORS_ALLOWED_ORIGINS`, which defaults to the local React dev
+server.
 
 ## API
 

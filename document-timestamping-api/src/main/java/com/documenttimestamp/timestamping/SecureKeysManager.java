@@ -20,6 +20,11 @@ import java.util.Base64;
  * configuration, so a deployment points at its own keystore without a rebuild.
  * Locations accept any Spring resource prefix, which means "classpath:cipher/..."
  * during development and "file:/etc/..." in production.
+ *
+ * The keystore is decrypted from disk once and the extracted key and certificate
+ * are cached. Signing a document reads both, so without the cache every request
+ * paid for two PKCS#12 loads. The certificate's validity is still checked on each
+ * call to getPublicKey, so an expiry that passes while the process runs is caught.
  */
 @Component
 public class SecureKeysManager {
@@ -32,6 +37,9 @@ public class SecureKeysManager {
     private final String truststorePassword;
     private final String truststoreType;
     private final String certificateAlias;
+
+    private volatile PrivateKey cachedPrivateKey;
+    private volatile Certificate cachedCertificate;
 
     public SecureKeysManager(
             ResourceLoader resourceLoader,
@@ -55,28 +63,52 @@ public class SecureKeysManager {
     }
 
     public PublicKey getPublicKey() throws Exception {
-        KeyStore keyStore = loadKeyStore(truststoreLocation, truststoreType, truststorePassword);
-        Certificate certificate = keyStore.getCertificate(certificateAlias);
-        if (certificate == null) {
-            throw new IllegalStateException(
-                    "No certificate under alias '" + certificateAlias + "' in " + truststoreLocation);
-        }
+        Certificate certificate = loadCertificate();
         if (certificate instanceof X509Certificate) {
             // A timestamp signed by an expired certificate is not worth issuing, so this
             // is checked on the way out rather than left for the client to discover.
+            // The check runs every call; only the load behind it is cached.
             ((X509Certificate) certificate).checkValidity();
         }
         return certificate.getPublicKey();
     }
 
     public PrivateKey getPrivateKey() throws Exception {
-        KeyStore keyStore = loadKeyStore(keystoreLocation, keystoreType, keystorePassword);
-        PrivateKey privateKey = (PrivateKey) keyStore.getKey(keyAlias, keystorePassword.toCharArray());
-        if (privateKey == null) {
-            throw new IllegalStateException(
-                    "No private key under alias '" + keyAlias + "' in " + keystoreLocation);
+        PrivateKey local = cachedPrivateKey;
+        if (local == null) {
+            synchronized (this) {
+                local = cachedPrivateKey;
+                if (local == null) {
+                    KeyStore keyStore = loadKeyStore(keystoreLocation, keystoreType, keystorePassword);
+                    local = (PrivateKey) keyStore.getKey(keyAlias, keystorePassword.toCharArray());
+                    if (local == null) {
+                        throw new IllegalStateException(
+                                "No private key under alias '" + keyAlias + "' in " + keystoreLocation);
+                    }
+                    cachedPrivateKey = local;
+                }
+            }
         }
-        return privateKey;
+        return local;
+    }
+
+    private Certificate loadCertificate() throws Exception {
+        Certificate local = cachedCertificate;
+        if (local == null) {
+            synchronized (this) {
+                local = cachedCertificate;
+                if (local == null) {
+                    KeyStore keyStore = loadKeyStore(truststoreLocation, truststoreType, truststorePassword);
+                    local = keyStore.getCertificate(certificateAlias);
+                    if (local == null) {
+                        throw new IllegalStateException(
+                                "No certificate under alias '" + certificateAlias + "' in " + truststoreLocation);
+                    }
+                    cachedCertificate = local;
+                }
+            }
+        }
+        return local;
     }
 
     /**

@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
-@CrossOrigin
+@CrossOrigin(origins = "${app.cors.allowed-origins}")
 @RestController
 @RequestMapping(path = "api/v1/documents")
 public class DocumentController {
