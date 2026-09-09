@@ -17,6 +17,10 @@ public class ChecksumGenerator {
 
     public static void main(String args[]) {
         try {
+            if (args.length == 0) {
+                System.out.println("Usage: java com.ib.ChecksumGenerator <filePath> [timestampMillis]");
+                System.out.println("Defaulting to " + filePath + " at " + documentTimestamp);
+            }
             String path = args.length > 0 ? args[0] : filePath;
             long ts = args.length > 1 ? Long.parseLong(args[1]) : documentTimestamp;
 

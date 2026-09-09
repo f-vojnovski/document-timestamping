@@ -1,6 +1,6 @@
 import "./App.css";
 import "bootstrap/dist/css/bootstrap.min.css";
-import DocumentUpload from "./components/pages/document-uplooad/DocumentUpload";
+import DocumentUpload from "./components/pages/document-upload/DocumentUpload";
 
 const App = () => {
   return <DocumentUpload></DocumentUpload>;

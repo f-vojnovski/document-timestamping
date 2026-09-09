@@ -246,6 +246,26 @@ class ApiContractTest {
         assertDocumentedErrorBody(read(result), 400);
     }
 
+    // Spring 6 dropped trailing-slash matching, so these paths are exact and the client
+    // must call them exactly. Verified against a document that exists, so a 404 here means
+    // the path did not route rather than the document being unknown.
+    @Test
+    void onlyTheDocumentedPathsRoute() throws Exception {
+        String content = uniqueContent("paths");
+        upload("Paths", content);
+
+        assertEquals(404, mockMvc.perform(multipart("/api/v1/documents")
+                        .file(file(uniqueContent("no-slash"))).param("title", "Paths"))
+                .andReturn().getResponse().getStatus(),
+                "upload is mapped at /documents/ and does not route without the trailing slash");
+
+        assertEquals(200, mockMvc.perform(multipart(VERIFY).file(file(content)))
+                .andReturn().getResponse().getStatus());
+        assertEquals(404, mockMvc.perform(multipart(VERIFY + "/").file(file(content)))
+                .andReturn().getResponse().getStatus(),
+                "the trailing-slash form must not route, which is why the client cannot use it");
+    }
+
     @Test
     void theWrongHttpMethodIsRejectedWithTheDocumentedBody() throws Exception {
         for (String path : new String[]{UPLOAD, VERIFY}) {

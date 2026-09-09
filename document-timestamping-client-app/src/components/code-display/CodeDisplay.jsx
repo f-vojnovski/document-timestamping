@@ -1,14 +1,14 @@
 import { useState } from "react";
+import copyToClipboard from "../../util/clipboard";
 
 const CodeDisplay = (props) => {
   const [isCopyBtnClicked, setIsClickedCpyBtn] =
     useState(false);
   const [isCodeShown, setIsCodeShown] = useState(false);
 
-  const onCopyButtonClicked = (event) => {
+  const onCopyButtonClicked = async (event) => {
     event.preventDefault();
-    navigator.clipboard.writeText(props.code);
-    setIsClickedCpyBtn(true);
+    setIsClickedCpyBtn(await copyToClipboard(props.code));
   };
 
   const onShowCodeButtonClicked = (event) => {

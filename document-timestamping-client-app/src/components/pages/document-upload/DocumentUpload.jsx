@@ -6,14 +6,16 @@ import CodeDisplay from "../../code-display/CodeDisplay";
 import generateChecksumCode from "../../../util/ChecksumCodeGenerator";
 
 const DocumentUpload = () => {
-  const API_URL = "http://localhost:8080/api/";
+  const API_URL =
+    import.meta.env.VITE_API_URL ?? "http://localhost:8080/api/";
   const UPLOAD_DOCUMENT_ENDPOINT = `${API_URL}v1/documents/`;
-  const VERIFY_DOCUMENT_ENDPOINT = `${API_URL}v1/documents/verify/`;
+  const VERIFY_DOCUMENT_ENDPOINT = `${API_URL}v1/documents/verify`;
 
   const [documentTitle, setDocumentTitle] = useState();
   const [selectedFile, setSelectedFile] = useState();
   const [formError, setFormError] = useState();
   const [response, setResponse] = useState();
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const onDocumentTitleChangedHandler = (event) => {
     event.preventDefault();
@@ -44,6 +46,7 @@ const DocumentUpload = () => {
       return;
     }
     setFormError(null);
+    setIsSubmitting(true);
 
     var data = new FormData();
     data.append("file", selectedFile);
@@ -62,6 +65,9 @@ const DocumentUpload = () => {
       })
       .catch(function (error) {
         reportError(error, "Could not timestamp the document.");
+      })
+      .finally(function () {
+        setIsSubmitting(false);
       });
   };
 
@@ -71,6 +77,7 @@ const DocumentUpload = () => {
       return;
     }
     setFormError(null);
+    setIsSubmitting(true);
 
     var data = new FormData();
     data.append("file", selectedFile);
@@ -91,6 +98,9 @@ const DocumentUpload = () => {
           error,
           "No timestamp on record for this document."
         );
+      })
+      .finally(function () {
+        setIsSubmitting(false);
       });
   };
 
@@ -115,10 +125,11 @@ const DocumentUpload = () => {
 
             <div className="row mt-2">
               <div className="col">
-                <label className="form-label">
+                <label className="form-label" htmlFor="document-title">
                   Document title
                 </label>
                 <input
+                  id="document-title"
                   className="form-control"
                   placeholder="e.g. Ducks research paper"
                   onChange={onDocumentTitleChangedHandler}
@@ -128,10 +139,11 @@ const DocumentUpload = () => {
 
             <div className="row mt-2">
               <div className="col">
-                <label className="form-label">
+                <label className="form-label" htmlFor="document-file">
                   Upload your document
                 </label>
                 <input
+                  id="document-file"
                   className="form-control"
                   type="file"
                   onChange={onFileChangedHandler}
@@ -155,8 +167,9 @@ const DocumentUpload = () => {
                   type="button"
                   className="btn btn-primary w-100"
                   onClick={onFormSubmitted}
+                  disabled={isSubmitting}
                 >
-                  Upload
+                  {isSubmitting ? "Working..." : "Upload"}
                 </button>
               </div>
             </div>
@@ -167,8 +180,9 @@ const DocumentUpload = () => {
                   type="button"
                   className="btn btn-secondary w-100"
                   onClick={onDocumentVerify}
+                  disabled={isSubmitting}
                 >
-                  Verify
+                  {isSubmitting ? "Working..." : "Verify"}
                 </button>
               </div>
             </div>

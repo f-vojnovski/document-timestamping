@@ -1,13 +1,13 @@
 import { useState } from "react";
+import copyToClipboard from "../../util/clipboard";
 
 const DocumentHashData = (props) => {
   const [isCopyBtnClicked, setIsClickedCpyBtn] =
     useState(false);
 
-  const onCopyButtonClicked = (event) => {
+  const onCopyButtonClicked = async (event) => {
     event.preventDefault();
-    navigator.clipboard.writeText(props.copyData);
-    setIsClickedCpyBtn(true);
+    setIsClickedCpyBtn(await copyToClipboard(props.copyData));
   };
 
   return (
@@ -72,7 +72,7 @@ const DocumentHashData = (props) => {
             className="btn btn-dark"
             onClick={onCopyButtonClicked}
           >
-            <i className="fa fa-folder"></i>Copy response
+            Copy response
           </button>
         </div>
       </div>
