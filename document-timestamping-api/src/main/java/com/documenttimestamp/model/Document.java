@@ -8,7 +8,7 @@ import jakarta.persistence.*;
 
 @Getter @Setter @NoArgsConstructor
 @Entity
-@Table
+@Table(indexes = @Index(name = "idx_document_checksum", columnList = "documentChecksum"))
 public class Document {
     public static final int TITLE_MAX_LENGTH = 255;
 
@@ -24,18 +24,19 @@ public class Document {
     )
     private Long id;
 
-    @Column(length = TITLE_MAX_LENGTH)
+    @Column(length = TITLE_MAX_LENGTH, nullable = false)
     private String title;
 
-    @Column(length = 2048)
+    @Column(length = 2048, nullable = false)
     private String encryptedHash;
 
-    @Column(length = 2048)
+    @Column(length = 2048, nullable = false)
     private String documentChecksum;
 
-    @Column(length = 2048)
+    @Column(length = 2048, nullable = false)
     private String targetHash;
 
+    @Column(nullable = false)
     private Long timestamp;
 
     @Transient
