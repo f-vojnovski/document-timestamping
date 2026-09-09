@@ -8,6 +8,7 @@ import generateChecksumCode from "../../../util/ChecksumCodeGenerator";
 const DocumentUpload = () => {
   const API_URL =
     import.meta.env.VITE_API_URL ?? "http://localhost:8080/api/";
+  const MAX_FILE_BYTES = 5 * 1024 * 1024;
   const UPLOAD_DOCUMENT_ENDPOINT = `${API_URL}v1/documents/`;
   const VERIFY_DOCUMENT_ENDPOINT = `${API_URL}v1/documents/verify`;
 
@@ -45,6 +46,10 @@ const DocumentUpload = () => {
       );
       return;
     }
+    if (selectedFile.size > MAX_FILE_BYTES) {
+      setFormError("That file is larger than the 5 MB limit.");
+      return;
+    }
     setFormError(null);
     setIsSubmitting(true);
 
@@ -74,6 +79,10 @@ const DocumentUpload = () => {
   const onDocumentVerify = (event) => {
     if (selectedFile == null) {
       setFormError("Upload a file for verification!");
+      return;
+    }
+    if (selectedFile.size > MAX_FILE_BYTES) {
+      setFormError("That file is larger than the 5 MB limit.");
       return;
     }
     setFormError(null);

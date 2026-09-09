@@ -10,6 +10,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.lang.Nullable;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MultipartException;
 import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
@@ -29,6 +30,11 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(ResponseStatusException.class)
     public ResponseEntity<Map<String, Object>> onStatusException(ResponseStatusException e) {
         return body(HttpStatus.valueOf(e.getStatusCode().value()), e.getReason());
+    }
+
+    @ExceptionHandler(MultipartException.class)
+    public ResponseEntity<Map<String, Object>> onMalformedMultipart(MultipartException e) {
+        return body(HttpStatus.BAD_REQUEST, "The upload could not be read as a multipart request.");
     }
 
     @ExceptionHandler(Exception.class)
