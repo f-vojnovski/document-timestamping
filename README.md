@@ -24,8 +24,8 @@ compromised.
 
 | Module | Stack | Role |
 | --- | --- | --- |
-| [document-timestamping-api](document-timestamping-api/) | Spring Boot 2.6.4, Java 11, JPA/Hibernate, PostgreSQL | Hashes, timestamps and signs documents |
-| [document-timestamping-client-app](document-timestamping-client-app/) | React 17, Bootstrap 5, axios | Upload and verification UI, generates the verifier source |
+| [document-timestamping-api](document-timestamping-api/) | Spring Boot 3.5.3, Java 21, JPA/Hibernate, PostgreSQL | Hashes, timestamps and signs documents |
+| [document-timestamping-client-app](document-timestamping-client-app/) | React 19, Vite, Bootstrap 5, axios | Upload and verification UI, generates the verifier source |
 | [document-timestamping-client-verification](document-timestamping-client-verification/) | Plain Java, JDK only | Standalone offline verifier |
 
 ## How the server timestamps a document
@@ -180,8 +180,19 @@ database or out to the client.
 ### Generating your own keystore
 
 No key material is committed to this repository. Generate your own with `keytool`, which ships
-with the JDK. Run these from `document-timestamping-api/src/main/resources/cipher/`, or
-anywhere you prefer if you point `KEYSTORE_LOCATION` at it.
+with the JDK.
+
+Pick a password first, since the commands below use it, and create the directory the server
+reads from by default. It is gitignored and so does not exist in a fresh clone:
+
+```bash
+export KEYSTORE_PASSWORD="your-keystore-password"
+mkdir -p document-timestamping-api/src/main/resources/cipher
+cd document-timestamping-api/src/main/resources/cipher
+```
+
+Any other location works too, if you point `KEYSTORE_LOCATION` and `TRUSTSTORE_LOCATION` at
+it — `file:/path/to/sender_keystore.p12` for a keystore outside the jar.
 
 Create the signing key pair and its self-signed certificate:
 
@@ -229,37 +240,50 @@ gitignored.
 
 ## Running it
 
-Requirements: JDK 11 or newer, PostgreSQL, Node 16 or newer.
+Requirements: JDK 21, Node 22 or newer. PostgreSQL only if you want persistence — see below.
 
-Create the database:
-
-```bash
-createdb documenttimestamping
-```
-
-Set the environment. Neither password has a default, so the application will not start
-without them:
-
-```bash
-export DB_URL="jdbc:postgresql://localhost:5432/documenttimestamping"
-export DB_USERNAME="postgres"
-export DB_PASSWORD="your-database-password"
-export KEYSTORE_PASSWORD="your-keystore-password"
-```
-
-Start the API on port 8080:
+Generate a keystore first, as described above, then start the API on port 8080:
 
 ```bash
 cd document-timestamping-api
-./mvnw spring-boot:run
+export KEYSTORE_PASSWORD="your-keystore-password"
+./mvnw spring-boot:run -Dspring-boot.run.profiles=dev
 ```
+
+The `dev` profile keeps documents in an in-memory database, so this needs no PostgreSQL and
+no database password. Timestamps do not survive a restart, which is fine for trying the
+service out: a proof is verified against the document and the public key, not against the
+server. `KEYSTORE_PASSWORD` is still required, because the signing key is the one thing the
+service cannot invent for you.
 
 Start the web client on port 3000:
 
 ```bash
 cd document-timestamping-client-app
 npm install
-npm start
+npm run dev
+```
+
+### Running against PostgreSQL
+
+Drop the `dev` profile to store timestamps for real. Create the database — `createdb` comes
+with PostgreSQL and may not be on your `PATH` on Windows:
+
+```bash
+createdb documenttimestamping
+```
+
+Then set the environment and start without a profile. Neither password has a default, so the
+application will not start without them:
+
+```bash
+export DB_URL="jdbc:postgresql://localhost:5432/documenttimestamping"
+export DB_USERNAME="postgres"
+export DB_PASSWORD="your-database-password"
+export KEYSTORE_PASSWORD="your-keystore-password"
+
+cd document-timestamping-api
+./mvnw spring-boot:run
 ```
 
 ### Tests
