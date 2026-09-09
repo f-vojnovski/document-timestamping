@@ -76,6 +76,10 @@ class ApiContractTest {
                 public PrivateKey getPrivateKey() {
                     return keyPair.getPrivate();
                 }
+
+                @Override
+                public void requireValidCertificate() {
+                }
             };
         }
     }

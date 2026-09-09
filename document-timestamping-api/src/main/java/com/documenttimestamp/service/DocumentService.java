@@ -29,7 +29,7 @@ public class DocumentService {
     }
 
     public Document hashAndStoreDocument(String title, MultipartFile file) throws Exception {
-        // Validates the certificate before anything is signed or stored.
+        secureKeysManager.requireValidCertificate();
         String encodedPublicKey = secureKeysManager.getEncodedPublicKey();
 
         MessageDigest shaDigest = MessageDigest.getInstance(HASHING_ALGORITHM);

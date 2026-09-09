@@ -43,6 +43,10 @@ class DocumentServiceTest {
         }
 
         @Override
+        public void requireValidCertificate() {
+        }
+
+        @Override
         public PrivateKey getPrivateKey() {
             return keyPair.getPrivate();
         }

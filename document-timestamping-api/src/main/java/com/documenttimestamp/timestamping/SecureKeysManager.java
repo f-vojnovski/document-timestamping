@@ -23,8 +23,8 @@ import java.util.Base64;
  *
  * The keystore is decrypted from disk once and the extracted key and certificate
  * are cached. Signing a document reads both, so without the cache every request
- * paid for two PKCS#12 loads. The certificate's validity is still checked on each
- * call to getPublicKey, so an expiry that passes while the process runs is caught.
+ * paid for two PKCS#12 loads. requireValidCertificate re-checks the expiry on each
+ * call, so an expiry that passes while the process runs is caught.
  *
  * The cache lives for the process, so rotating the keystore on disk takes effect
  * on the next restart rather than immediately. That suits a service that restarts
@@ -68,14 +68,16 @@ public class SecureKeysManager {
     }
 
     public PublicKey getPublicKey() throws Exception {
+        return loadCertificate().getPublicKey();
+    }
+
+    // Not called when retrieving an old proof: a signature made while the certificate was
+    // valid stays valid after it expires.
+    public void requireValidCertificate() throws Exception {
         Certificate certificate = loadCertificate();
         if (certificate instanceof X509Certificate) {
-            // A timestamp signed by an expired certificate is not worth issuing, so this
-            // is checked on the way out rather than left for the client to discover.
-            // The check runs every call; only the load behind it is cached.
             ((X509Certificate) certificate).checkValidity();
         }
-        return certificate.getPublicKey();
     }
 
     public PrivateKey getPrivateKey() throws Exception {
