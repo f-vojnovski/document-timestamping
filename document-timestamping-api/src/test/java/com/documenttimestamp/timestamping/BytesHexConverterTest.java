@@ -22,6 +22,13 @@ class BytesHexConverterTest {
     }
 
     @Test
+    void refusesInputThatIsNotHex() {
+        assertThrows(IllegalArgumentException.class, () -> BytesHexConverter.hexStringToByteArray("ABC"));
+        assertThrows(IllegalArgumentException.class, () -> BytesHexConverter.hexStringToByteArray("ZZ"));
+        assertThrows(IllegalArgumentException.class, () -> BytesHexConverter.hexStringToByteArray("  "));
+    }
+
+    @Test
     void handlesAnEmptyArray() {
         assertEquals("", BytesHexConverter.bytesToHex(new byte[0]));
         assertEquals(0, BytesHexConverter.hexStringToByteArray("").length);

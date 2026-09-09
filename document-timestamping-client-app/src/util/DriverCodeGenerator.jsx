@@ -102,10 +102,17 @@ public class Main {
 
     public static byte[] hexStringToByteArray(String s) {
         int len = s.length();
+        if (len % 2 != 0) {
+            throw new IllegalArgumentException("A hex string has an even number of characters, got " + len);
+        }
         byte[] data = new byte[len / 2];
         for (int i = 0; i < len; i += 2) {
-            data[i / 2] = (byte) ((Character.digit(s.charAt(i), 16) << 4)
-                    + Character.digit(s.charAt(i+1), 16));
+            int high = Character.digit(s.charAt(i), 16);
+            int low = Character.digit(s.charAt(i + 1), 16);
+            if (high < 0 || low < 0) {
+                throw new IllegalArgumentException("Not a hex string at index " + i);
+            }
+            data[i / 2] = (byte) ((high << 4) + low);
         }
         return data;
     }

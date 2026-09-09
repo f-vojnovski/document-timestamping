@@ -1,6 +1,7 @@
 package com.documenttimestamp.service;
 
 import com.documenttimestamp.model.Document;
+import com.documenttimestamp.model.ProofResponse;
 import com.documenttimestamp.repository.DocumentRepository;
 import com.documenttimestamp.timestamping.*;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -28,36 +29,43 @@ public class DocumentService {
         this.secureKeysManager = secureKeysManager;
     }
 
-    public Document hashAndStoreDocument(String title, MultipartFile file) throws Exception {
-        secureKeysManager.requireValidCertificate();
-        String encodedPublicKey = secureKeysManager.getEncodedPublicKey();
+    public ProofResponse hashAndStoreDocument(String title, MultipartFile file) {
+        try {
+            secureKeysManager.requireValidCertificate();
+            String encodedPublicKey = secureKeysManager.getEncodedPublicKey();
 
-        MessageDigest shaDigest = MessageDigest.getInstance(HASHING_ALGORITHM);
-        byte[] messageHash = FileChecksumCalculator.getFileChecksum(shaDigest, file);
+            MessageDigest shaDigest = MessageDigest.getInstance(HASHING_ALGORITHM);
+            byte[] messageHash = FileChecksumCalculator.getFileChecksum(shaDigest, file);
 
-        Timestamp ts = TimestampingUtility.getCurrentTime();
-        byte[] messageAndTimestampHash = FileTimestamp.hashFileWithTimestamp(shaDigest, messageHash, ts);
+            Timestamp ts = TimestampingUtility.getCurrentTime();
+            byte[] messageAndTimestampHash = FileTimestamp.hashFileWithTimestamp(shaDigest, messageHash, ts);
 
-        byte[] signature = cipherUtility.signDocumentHash(messageAndTimestampHash);
+            byte[] signature = cipherUtility.signDocumentHash(messageAndTimestampHash);
 
-        Document d = new Document();
-        d.setTitle(title);
-        d.setEncryptedHash(BytesHexConverter.bytesToHex(signature));
-        d.setDocumentChecksum(BytesHexConverter.bytesToHex(messageHash));
-        d.setTargetHash(BytesHexConverter.bytesToHex(messageAndTimestampHash));
-        d.setTimestamp(ts.getTime());
-        documentRepository.save(d);
+            Document d = new Document();
+            d.setTitle(title);
+            d.setEncryptedHash(BytesHexConverter.bytesToHex(signature));
+            d.setDocumentChecksum(BytesHexConverter.bytesToHex(messageHash));
+            d.setTargetHash(BytesHexConverter.bytesToHex(messageAndTimestampHash));
+            d.setTimestamp(ts.getTime());
+            documentRepository.save(d);
 
-        d.setPublicKey(encodedPublicKey);
-        d.setSignatureAlgorithm(CipherUtility.SIGNATURE_ALGORITHM);
-        d.setHashingAlgorithm(HASHING_ALGORITHM);
-        return d;
+            return ProofResponse.of(d, encodedPublicKey,
+                    CipherUtility.SIGNATURE_ALGORITHM, HASHING_ALGORITHM);
+        } catch (Exception e) {
+            throw new TimestampingException("Could not timestamp the document", e);
+        }
     }
 
-    public Document verifyDocument(MultipartFile file) throws Exception {
-        MessageDigest shaDigest = MessageDigest.getInstance(HASHING_ALGORITHM);
-        byte[] messageHash = FileChecksumCalculator.getFileChecksum(shaDigest, file);
-        String checksum = BytesHexConverter.bytesToHex(messageHash);
+    public ProofResponse verifyDocument(MultipartFile file) {
+        String checksum;
+        try {
+            MessageDigest shaDigest = MessageDigest.getInstance(HASHING_ALGORITHM);
+            checksum = BytesHexConverter.bytesToHex(
+                    FileChecksumCalculator.getFileChecksum(shaDigest, file));
+        } catch (Exception e) {
+            throw new TimestampingException("Could not hash the document", e);
+        }
 
         Optional<Document> stored = documentRepository.findFirstByDocumentChecksumOrderByTimestampAsc(checksum);
         if (stored.isEmpty()) {
@@ -65,10 +73,11 @@ public class DocumentService {
                     "No timestamp on record for checksum " + checksum);
         }
 
-        Document d = stored.get();
-        d.setPublicKey(secureKeysManager.getEncodedPublicKey());
-        d.setSignatureAlgorithm(CipherUtility.SIGNATURE_ALGORITHM);
-        d.setHashingAlgorithm(HASHING_ALGORITHM);
-        return d;
+        try {
+            return ProofResponse.of(stored.get(), secureKeysManager.getEncodedPublicKey(),
+                    CipherUtility.SIGNATURE_ALGORITHM, HASHING_ALGORITHM);
+        } catch (Exception e) {
+            throw new TimestampingException("Could not read the public key", e);
+        }
     }
 }

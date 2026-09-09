@@ -1,6 +1,7 @@
 package com.documenttimestamp.api;
 
 import com.documenttimestamp.model.Document;
+import com.documenttimestamp.model.ProofResponse;
 import com.documenttimestamp.service.DocumentService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -20,8 +21,8 @@ public class DocumentController {
     }
 
     @PostMapping("/")
-    public ResponseEntity<Document> onDocumentUpload(@RequestParam("title") String title,
-                                                    @RequestParam("file") MultipartFile file) throws Exception {
+    public ResponseEntity<ProofResponse> onDocumentUpload(@RequestParam("title") String title,
+                                                         @RequestParam("file") MultipartFile file) {
         if (title == null || title.isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A document title is required");
         }
@@ -37,7 +38,7 @@ public class DocumentController {
     }
 
     @PostMapping("/verify")
-    public ResponseEntity<Document> onDocumentVerify(@RequestParam("file") MultipartFile file) throws Exception {
+    public ResponseEntity<ProofResponse> onDocumentVerify(@RequestParam("file") MultipartFile file) {
         if (file == null || file.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A non-empty file is required");
         }

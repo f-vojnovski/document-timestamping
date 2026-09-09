@@ -39,13 +39,4 @@ public class Document {
 
     @Column(nullable = false)
     private Long timestamp;
-
-    @Transient
-    private String publicKey;
-
-    @Transient
-    private String signatureAlgorithm;
-
-    @Transient
-    private String hashingAlgorithm;
 }
