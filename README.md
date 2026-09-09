@@ -5,8 +5,8 @@ the file existed in exactly that form at a particular moment. The proof is a sig
 and checking it requires no contact with the server. The document, a public key and a short
 Java program are enough.
 
-Built by Filip Vojnovski (171214) and Jovan Canevski (185058) as coursework for
-Information Security. The original Macedonian write-up is preserved at
+Built by Filip Vojnovski and Jovan Canevski for a university Information Security course,
+and maintained since. The original Macedonian write-up is preserved at
 [README.mk.md](README.mk.md).
 
 ## The idea
@@ -112,36 +112,43 @@ it with SHA-512, applies the timestamp the same way the server did, and prints b
 checksum and the combined hash. It takes an optional file path and timestamp as arguments, so
 one copy can check any document.
 
-`Main` checks the signature. It decodes the Base64 public key through `X509EncodedKeySpec` and
-`KeyFactory`, then verifies `encryptedHash` against `targetHash` with `SHA512withRSA`. It
-prints `SIGNATURE VALID - OK!` or `DOCUMENT NOT VALID!`.
+`Main` checks both halves of the proof. It hashes the document the same way, compares the
+result against the `targetHash` it carries, then decodes the Base64 public key through
+`X509EncodedKeySpec` and `KeyFactory` and verifies `encryptedHash` with `SHA512withRSA`. The
+two answers are reported separately, and it exits non-zero if either fails.
 
-Run both and compare against the response. A matching `targetHash` from `ChecksumGenerator`
-means the document on disk is the one that was uploaded. A valid signature from `Main` means
-that hash was signed by the private key behind the certificate. Neither check contacts the
-server.
+Both answers are needed. A matching hash means the document on disk is the one that was
+uploaded; a valid signature means that hash was signed by the private key behind the
+certificate. Neither check contacts the server.
 
-The web client writes both files with the correct values already filled in, so verification
-comes down to compiling and running them. `sample.pdf` ships with the module as a document to
-try it against.
+`sample.pdf` ships with the module as a document to try it against. Run these from `src`:
 
 ```
 $ javac com/ib/*.java
 
-$ java com.ib.ChecksumGenerator
+$ java com.ib.ChecksumGenerator ../sample.pdf
 DOCUMENT CHECKSUM:
 EAF7542ADE2C338D8D2CC76FCBF883E62C31336E60CB236F86ED66C8154EA9FB836FD88367880911529BDAFED0E76CD34272123A4D656DB61B120B95EAA3E069
 DOCUMENT + TIMESTAMP HASH:
 E201DF538216462F33720C9E4B56AB248425B3493D277F1F95FDD1D21DBFFF78046D93EDCD832BC3033179F4C55A4E9721F98ED15B1BF9DB0A9F9E9C604E4CDA
+```
 
-$ java com.ib.Main
+`Main` needs a proof of its own. The web client writes the file with the signature, public
+key, target hash and timestamp already in place; the copy in the repository holds placeholders
+and says so when run. With a proof filled in:
+
+```
+$ java com.ib.Main ../sample.pdf
 ALGORITHM: SHA512withRSA
+DOCUMENT: ../sample.pdf
 TARGET HASH: E201DF538216462F33720C9E4B56AB248425B3493D277F1F95FDD1D21DBFFF78046D93EDCD832BC3033179F4C55A4E9721F98ED15B1BF9DB0A9F9E9C604E4CDA
+RECOMPUTED:  E201DF538216462F33720C9E4B56AB248425B3493D277F1F95FDD1D21DBFFF78046D93EDCD832BC3033179F4C55A4E9721F98ED15B1BF9DB0A9F9E9C604E4CDA
+DOCUMENT MATCHES - OK!
 SIGNATURE VALID - OK!
 ```
 
-Change a single byte of the document, or shift the timestamp by a single millisecond, and
-`ChecksumGenerator` prints a completely different hash that the signature will not match.
+Change a single byte of the document, or shift the timestamp by a single millisecond, and the
+recomputed hash differs and `Main` reports `DOCUMENT DOES NOT MATCH!`.
 
 ## Verifying against the API
 
@@ -151,6 +158,20 @@ lost the proof. It hashes the uploaded file and looks the checksum up through
 record with the public key attached. A document submitted more than once has a record for each
 submission, and the earliest is returned, since the claim being proved is that the document
 existed no later than that moment. This route needs the server, unlike the offline one above.
+
+## What this does not prove
+
+The timestamp comes from the server's own clock, and nothing outside the server vouches for it.
+Anyone operating the service can issue a proof bearing any time they choose, and a leaked
+private key would allow proofs to be forged for dates in the past with no way to tell when the
+compromise happened. The signature establishes that the holder of the key vouched for a
+document at a stated time. It does not establish that the stated time is true.
+
+A production service closes that gap by anchoring to something the operator does not control.
+RFC 3161 is the standard route, where a Timestamping Authority holds the key under a
+certificate issued for that purpose alone. A lighter alternative is publishing a periodic digest
+of issued proofs somewhere append-only, so a backdated proof would be missing from the record
+for the period it claims. Either sits on top of the signing pipeline here without changing it.
 
 ## Keys and certificates
 
@@ -174,7 +195,9 @@ it.
 
 Certificate expiry is checked before every signature. A timestamp issued under an expired
 certificate is not worth holding, so the request fails with a 500 rather than handing back a
-proof that will not stand up later.
+proof that will not stand up later. Retrieving a proof already on record does not require a
+valid certificate, since a signature made while the certificate was valid stays valid after it
+expires.
 
 `BytesHexConverter` handles the hex encoding used for every hash that crosses into the
 database or out to the client.
@@ -327,7 +350,7 @@ server.
 
 | Method | Path | Body | Success | Failure |
 | --- | --- | --- | --- | --- |
-| `POST` | `/api/v1/documents/` | `title`, `file` | `201` with the record and its proof | `400` missing title or empty file, `500` signing or keystore failure |
+| `POST` | `/api/v1/documents/` | `title`, `file` | `201` with the record and its proof | `400` missing title or empty file, `413` file over the size cap, `500` signing or keystore failure |
 | `POST` | `/api/v1/documents/verify` | `file` | `200` with the stored record | `400` empty file, `404` checksum not on record |
 
 Errors return a JSON body with `status`, `error` and a `message` explaining what went wrong.
@@ -360,14 +383,16 @@ client at another host; `.env.example` shows the format.
 ```
 document-timestamping-api/
   src/main/java/com/documenttimestamp/
-    api/           DocumentController, ApiExceptionHandler
+    api/           DocumentController, ApiExceptionHandler, ApiErrorController,
+                   CorsConfig
     service/       DocumentService, DocumentNotFoundException
     repository/    DocumentRepository
     model/         Document
     timestamping/  FileChecksumCalculator, TimestampingUtility, FileTimestamp,
                    CipherUtility, SecureKeysManager, BytesHexConverter
-  src/test/java/   FileTimestampTest, CipherUtilityTest, BytesHexConverterTest,
-                   DocumentServiceTest
+  src/test/java/   ApiContractTest, ExpiredCertificateTest, MultiOriginCorsTest,
+                   DocumentServiceTest, CipherUtilityTest, FileTimestampTest,
+                   BytesHexConverterTest, DocumentTimestampApplicationTests
 document-timestamping-client-app/
   src/components/  DocumentUpload, DocumentHashData, CodeDisplay
   src/util/        DriverCodeGenerator, ChecksumCodeGenerator, clipboard
