@@ -11,6 +11,7 @@ import jakarta.persistence.*;
 @Table(indexes = @Index(name = "idx_document_checksum", columnList = "documentChecksum"))
 public class Document {
     public static final int TITLE_MAX_LENGTH = 255;
+    private static final int SHA512_HEX_LENGTH = 128;
 
     @Id
     @SequenceGenerator(
@@ -30,10 +31,10 @@ public class Document {
     @Column(length = 2048, nullable = false)
     private String encryptedHash;
 
-    @Column(length = 2048, nullable = false)
+    @Column(length = SHA512_HEX_LENGTH, nullable = false)
     private String documentChecksum;
 
-    @Column(length = 2048, nullable = false)
+    @Column(length = SHA512_HEX_LENGTH, nullable = false)
     private String targetHash;
 
     @Column(nullable = false)
