@@ -27,7 +27,7 @@ public class ApiExceptionHandler {
 
     @ExceptionHandler(ResponseStatusException.class)
     public ResponseEntity<Map<String, Object>> onStatusException(ResponseStatusException e) {
-        return body(HttpStatus.valueOf(e.getRawStatusCode()), e.getReason());
+        return body(HttpStatus.valueOf(e.getStatusCode().value()), e.getReason());
     }
 
     @ExceptionHandler(Exception.class)

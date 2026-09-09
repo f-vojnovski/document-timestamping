@@ -19,7 +19,7 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '11'
+          java-version: '21'
           cache: maven
       - name: Run tests
         run: |
@@ -37,7 +37,7 @@ jobs:
       - name: Set up Node 18
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '22'
           cache: npm
           cache-dependency-path: document-timestamping-client-app/package-lock.json
       - name: Install and build
