@@ -1,6 +1,7 @@
 package com.ib;
 
 import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -12,17 +13,19 @@ import java.sql.Timestamp;
 // Usage: java com.ib.ChecksumGenerator [filePath] [timestampMillis]
 public class ChecksumGenerator {
     private final static String hashingAlgorithm = "SHA-512";
-    private final static Long documentTimestamp = 1647824028289L;
+    private final static Long documentTimestamp = 1788825888422L;
     private final static String filePath = "sample.pdf";
 
     public static void main(String args[]) {
         try {
-            if (args.length == 0) {
-                System.out.println("Usage: java com.ib.ChecksumGenerator <filePath> [timestampMillis]");
-                System.out.println("Defaulting to " + filePath + " at " + documentTimestamp);
-            }
             String path = args.length > 0 ? args[0] : filePath;
             long ts = args.length > 1 ? Long.parseLong(args[1]) : documentTimestamp;
+
+            if (!new File(path).exists()) {
+                System.out.println("File not found: " + path);
+                System.out.println("Usage: java com.ib.ChecksumGenerator <filePath> [timestampMillis]");
+                return;
+            }
 
             // digest message
             MessageDigest shaDigest = MessageDigest.getInstance(hashingAlgorithm);

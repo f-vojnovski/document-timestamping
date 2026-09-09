@@ -59,7 +59,7 @@ public class DocumentService {
         byte[] messageHash = FileChecksumCalculator.getFileChecksum(shaDigest, file);
         String checksum = BytesHexConverter.bytesToHex(messageHash);
 
-        Optional<Document> stored = documentRepository.findFirstByDocumentChecksum(checksum);
+        Optional<Document> stored = documentRepository.findFirstByDocumentChecksumOrderByTimestampAsc(checksum);
         if (stored.isEmpty()) {
             throw new DocumentNotFoundException(
                     "No timestamp on record for checksum " + checksum);

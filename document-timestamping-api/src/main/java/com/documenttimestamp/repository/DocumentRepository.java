@@ -8,5 +8,5 @@ import java.util.Optional;
 
 @Repository
 public interface DocumentRepository extends JpaRepository<Document, Long> {
-    Optional<Document> findFirstByDocumentChecksum(String documentChecksum);
+    Optional<Document> findFirstByDocumentChecksumOrderByTimestampAsc(String documentChecksum);
 }

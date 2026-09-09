@@ -58,7 +58,7 @@ class DocumentServiceTest {
                 case "save":
                     saved.add((Document) args[0]);
                     return args[0];
-                case "findFirstByDocumentChecksum":
+                case "findFirstByDocumentChecksumOrderByTimestampAsc":
                     return saved.stream()
                             .filter(d -> d.getDocumentChecksum().equals(args[0]))
                             .findFirst();

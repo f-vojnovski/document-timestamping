@@ -1,5 +1,7 @@
 package com.documenttimestamp;
 
+import com.documenttimestamp.model.Document;
+import com.documenttimestamp.repository.DocumentRepository;
 import com.documenttimestamp.timestamping.SecureKeysManager;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
@@ -47,6 +49,9 @@ class ApiContractTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @Autowired
+    private DocumentRepository documentRepository;
 
     private final ObjectMapper json = new ObjectMapper();
 
@@ -290,6 +295,36 @@ class ApiContractTest {
         assertEquals(uploaded.get("targetHash"), found.get("targetHash"));
         assertEquals(uploaded.get("timestamp"), found.get("timestamp"));
         assertNotNull(found.get("publicKey"), "verify must attach the public key too");
+    }
+
+    // The rows are stored newest-first so insertion order disagrees with timestamp order,
+    // otherwise this would pass on the database returning rows by id.
+    @Test
+    void verifyReturnsTheEarliestTimestampForADocumentStoredTwice() throws Exception {
+        String content = uniqueContent("twice");
+        String checksum = toHex(MessageDigest.getInstance("SHA-512").digest(content.getBytes()));
+        long earliest = 1_600_000_000_000L;
+
+        documentRepository.save(row("Later submission", checksum, earliest + 5_000L));
+        documentRepository.save(row("Earliest submission", checksum, earliest));
+
+        MvcResult result = mockMvc.perform(multipart(VERIFY).file(file(content))).andReturn();
+        Map<String, Object> found = read(result);
+
+        assertEquals(earliest, ((Number) found.get("timestamp")).longValue(),
+                "the earliest timestamp is the one worth proving, since the claim is that the "
+                        + "document existed no later than that moment");
+        assertEquals("Earliest submission", found.get("title"));
+    }
+
+    private Document row(String title, String checksum, long timestamp) {
+        Document d = new Document();
+        d.setTitle(title);
+        d.setDocumentChecksum(checksum);
+        d.setTargetHash(checksum);
+        d.setEncryptedHash(checksum);
+        d.setTimestamp(timestamp);
+        return d;
     }
 
     @Test

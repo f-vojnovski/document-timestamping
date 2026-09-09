@@ -147,8 +147,10 @@ Change a single byte of the document, or shift the timestamp by a single millise
 
 `POST /api/v1/documents/verify` covers the case where the user still has the document but has
 lost the proof. It hashes the uploaded file and looks the checksum up through
-`DocumentRepository.findFirstByDocumentChecksum`, returning the stored record with the public
-key attached. This route needs the server, unlike the offline one above.
+`DocumentRepository.findFirstByDocumentChecksumOrderByTimestampAsc`, returning the stored
+record with the public key attached. A document submitted more than once has a record for each
+submission, and the earliest is returned, since the claim being proved is that the document
+existed no later than that moment. This route needs the server, unlike the offline one above.
 
 ## Keys and certificates
 
@@ -297,7 +299,8 @@ The suite runs against an in-memory H2 database and generates its key pairs at r
 needs no PostgreSQL instance, no keystore on disk and no environment variables. It covers the
 timestamp encoding, the hex conversion, signing and verification, and the full service
 pipeline including an offline recomputation of `targetHash` in the same way the client does
-it.
+it. It also pins the HTTP contract: the documented status codes and error body, the CORS rule,
+the endpoint paths, and that an expired certificate stores nothing.
 
 ### Configuration
 
@@ -339,11 +342,18 @@ are out of scope here and would be added before a real deployment.
 The React app handles uploading and verifying. Pick a file, give it a title, and press Upload
 to send it to the API.
 
+![The upload form with a title and a document selected](docs/screenshots/upload-form.png)
+
 The response is rendered as readable fields with a button to copy the whole payload. Below
 that, the app generates the two Java classes described above with the signature, timestamp,
 public key, signature algorithm and target hash already filled in, each behind show/hide and
 copy controls. Failed requests show the message the API returned rather than leaving the
 screen unchanged.
+
+![The proof returned for the uploaded document](docs/screenshots/proof.png)
+
+The API base URL defaults to `http://localhost:8080/api/`. Set `VITE_API_URL` to point the
+client at another host; `.env.example` shows the format.
 
 ## Layout
 
@@ -360,7 +370,7 @@ document-timestamping-api/
                    DocumentServiceTest
 document-timestamping-client-app/
   src/components/  DocumentUpload, DocumentHashData, CodeDisplay
-  src/util/        DriverCodeGenerator, ChecksumCodeGenerator
+  src/util/        DriverCodeGenerator, ChecksumCodeGenerator, clipboard
 document-timestamping-client-verification/
   src/com/ib/      ChecksumGenerator, Main
   sample.pdf
