@@ -3,21 +3,22 @@ package com.documenttimestamp.api;
 import com.documenttimestamp.service.DocumentNotFoundException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
+import org.springframework.lang.Nullable;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
 import java.time.Instant;
 import java.util.Map;
 
-/**
- * Turns failures into HTTP status codes. Signing errors used to surface as an empty
- * 200, which left a client unable to tell a missing keystore from a valid timestamp.
- */
 @RestControllerAdvice
-public class ApiExceptionHandler {
+public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
     private static final Logger log = LoggerFactory.getLogger(ApiExceptionHandler.class);
 
     @ExceptionHandler(DocumentNotFoundException.class)
@@ -37,11 +38,23 @@ public class ApiExceptionHandler {
                 "The document could not be timestamped. Check the server logs and the keystore configuration.");
     }
 
+    @Override
+    protected ResponseEntity<Object> handleExceptionInternal(Exception ex, @Nullable Object body,
+                                                             HttpHeaders headers, HttpStatusCode statusCode,
+                                                             WebRequest request) {
+        HttpStatus status = HttpStatus.valueOf(statusCode.value());
+        return new ResponseEntity<>(payload(status, ex.getMessage()), headers, status);
+    }
+
     private ResponseEntity<Map<String, Object>> body(HttpStatus status, String message) {
-        return ResponseEntity.status(status).body(Map.of(
+        return ResponseEntity.status(status).body(payload(status, message));
+    }
+
+    private Map<String, Object> payload(HttpStatus status, String message) {
+        return Map.of(
                 "timestamp", Instant.now().toString(),
                 "status", status.value(),
                 "error", status.getReasonPhrase(),
-                "message", message == null ? status.getReasonPhrase() : message));
+                "message", message == null || message.isBlank() ? status.getReasonPhrase() : message);
     }
 }

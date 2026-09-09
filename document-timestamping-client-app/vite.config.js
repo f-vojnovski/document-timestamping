@@ -1,8 +1,7 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
-// Dev server stays on 3000 so the API's default CORS origin
-// (http://localhost:3000) keeps working without extra configuration.
+// Port 3000 matches the API's default allowed CORS origin.
 export default defineConfig({
   plugins: [react()],
   server: {

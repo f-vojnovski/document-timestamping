@@ -9,7 +9,6 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.security.MessageDigest;
 import java.sql.Timestamp;
-import java.util.List;
 import java.util.Optional;
 
 @Service
@@ -29,26 +28,16 @@ public class DocumentService {
         this.secureKeysManager = secureKeysManager;
     }
 
-    public List<Document> getDocuments() {
-        return documentRepository.findAll();
-    }
-
-    /**
-     * Hashes the upload, binds it to the current server time, signs the result and
-     * stores it. Failures propagate: a caller that cannot tell a signing error from a
-     * successful timestamp has no way to know whether the proof it holds is real.
-     */
     public Document hashAndStoreDocument(String title, MultipartFile file) throws Exception {
-        MessageDigest shaDigest = MessageDigest.getInstance(HASHING_ALGORITHM);
+        // Validates the certificate before anything is signed or stored.
+        String encodedPublicKey = secureKeysManager.getEncodedPublicKey();
 
-        // Hash the document on its own
+        MessageDigest shaDigest = MessageDigest.getInstance(HASHING_ALGORITHM);
         byte[] messageHash = FileChecksumCalculator.getFileChecksum(shaDigest, file);
 
-        // Bind the document to the moment it arrived
         Timestamp ts = TimestampingUtility.getCurrentTime();
         byte[] messageAndTimestampHash = FileTimestamp.hashFileWithTimestamp(shaDigest, messageHash, ts);
 
-        // Sign the combined hash
         byte[] signature = cipherUtility.signDocumentHash(messageAndTimestampHash);
 
         Document d = new Document();
@@ -59,16 +48,12 @@ public class DocumentService {
         d.setTimestamp(ts.getTime());
         documentRepository.save(d);
 
-        d.setPublicKey(secureKeysManager.getEncodedPublicKey());
+        d.setPublicKey(encodedPublicKey);
         d.setSignatureAlgorithm(CipherUtility.SIGNATURE_ALGORITHM);
         d.setHashingAlgorithm(HASHING_ALGORITHM);
         return d;
     }
 
-    /**
-     * Looks up a previously timestamped document by its checksum, for the case where
-     * the user still holds the file but has lost the proof.
-     */
     public Document verifyDocument(MultipartFile file) throws Exception {
         MessageDigest shaDigest = MessageDigest.getInstance(HASHING_ALGORITHM);
         byte[] messageHash = FileChecksumCalculator.getFileChecksum(shaDigest, file);

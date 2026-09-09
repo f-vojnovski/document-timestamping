@@ -9,7 +9,6 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
-@CrossOrigin(origins = "${app.cors.allowed-origins}")
 @RestController
 @RequestMapping(path = "api/v1/documents")
 public class DocumentController {
@@ -25,6 +24,10 @@ public class DocumentController {
                                                     @RequestParam("file") MultipartFile file) throws Exception {
         if (title == null || title.isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A document title is required");
+        }
+        if (title.length() > Document.TITLE_MAX_LENGTH) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "A document title must be " + Document.TITLE_MAX_LENGTH + " characters or fewer");
         }
         if (file == null || file.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A non-empty file is required");

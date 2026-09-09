@@ -10,6 +10,8 @@ import jakarta.persistence.*;
 @Entity
 @Table
 public class Document {
+    public static final int TITLE_MAX_LENGTH = 255;
+
     @Id
     @SequenceGenerator(
             name = "document_sequence",
@@ -22,6 +24,7 @@ public class Document {
     )
     private Long id;
 
+    @Column(length = TITLE_MAX_LENGTH)
     private String title;
 
     @Column(length = 2048)
@@ -35,10 +38,6 @@ public class Document {
 
     private Long timestamp;
 
-    /**
-     * Sent to the client so it can verify, never stored. These describe the
-     * certificate and the algorithms in force when the document was signed.
-     */
     @Transient
     private String publicKey;
 

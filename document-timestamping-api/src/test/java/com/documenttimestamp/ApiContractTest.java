@@ -31,22 +31,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
-/**
- * Pins the HTTP contract: status codes, the documented JSON shapes, the CORS rule and
- * the offline reproducibility of targetHash.
- *
- * The existing suite covers the hashing and signing classes directly but stops below the
- * web layer, so nothing verified what a client actually receives. These assertions exist
- * to be broken by an accidental change — a status code, a renamed response field, a lost
- * error body or a different CORS decision — rather than to restate what the JDK does.
- *
- * Keys are generated in memory rather than loaded from a committed keystore: no key
- * material belongs in the repository, and this keeps the suite runnable with no setup.
- * The keystore loading path itself is exercised by SecureKeysManager's own callers.
- */
 @SpringBootTest
 @AutoConfigureMockMvc
 class ApiContractTest {
@@ -54,7 +43,6 @@ class ApiContractTest {
     private static final String UPLOAD = "/api/v1/documents/";
     private static final String VERIFY = "/api/v1/documents/verify";
 
-    /** The origin configured in src/test/resources/application.properties. */
     private static final String ALLOWED_ORIGIN = "http://localhost:3000";
 
     @Autowired
@@ -62,10 +50,6 @@ class ApiContractTest {
 
     private final ObjectMapper json = new ObjectMapper();
 
-    /**
-     * Serves a keypair from memory so the web layer can sign without a keystore on disk.
-     * Overriding the two accessors is enough: everything else reads through them.
-     */
     @TestConfiguration
     static class InMemoryKeys {
         @Bean
@@ -99,7 +83,6 @@ class ApiContractTest {
         return file(content.getBytes());
     }
 
-    /** A payload unique to this run, so ordering between tests cannot matter. */
     private String uniqueContent(String label) {
         return label + "-" + System.nanoTime();
     }
@@ -136,7 +119,6 @@ class ApiContractTest {
         return sb.toString();
     }
 
-    // ---------------------------------------------------------------- upload
 
     @Test
     void uploadReturnsEveryDocumentedProofField() throws Exception {
@@ -178,8 +160,7 @@ class ApiContractTest {
         String content = uniqueContent("offline");
         Map<String, Object> body = upload("Reproducible", content);
 
-        // Recomputed the way the standalone ChecksumGenerator does it: SHA-512 of the
-        // file, then SHA-512 of that checksum followed by eight big-endian timestamp bytes.
+        // Recomputed the way the standalone ChecksumGenerator does.
         byte[] checksum = MessageDigest.getInstance("SHA-512").digest(content.getBytes());
         ByteArrayOutputStream buffer = new ByteArrayOutputStream();
         buffer.write(checksum);
@@ -219,7 +200,62 @@ class ApiContractTest {
         assertDocumentedErrorBody(read(verify), 400);
     }
 
-    // ---------------------------------------------------------------- verify
+    // Literals, not TITLE_MAX_LENGTH: reading the constant would keep this green if it changed.
+    @Test
+    void aTitleTooLongForTheColumnIsRejectedInsteadOfFailingTheInsert() throws Exception {
+        String longest = new String(new char[255]).replace('\0', 'a');
+        MvcResult accepted = mockMvc.perform(multipart(UPLOAD)
+                        .file(file(uniqueContent("title-255")))
+                        .param("title", longest))
+                .andReturn();
+        assertEquals(201, accepted.getResponse().getStatus(),
+                "a 255-character title fits the column and must be accepted");
+
+        String tooLong = new String(new char[256]).replace('\0', 'a');
+        MvcResult refused = mockMvc.perform(multipart(UPLOAD)
+                        .file(file(uniqueContent("title-256")))
+                        .param("title", tooLong))
+                .andReturn();
+        assertEquals(400, refused.getResponse().getStatus(),
+                "a 256-character title must be refused up front, not surface as a failed insert");
+        assertDocumentedErrorBody(read(refused), 400);
+    }
+
+    @Test
+    void aMissingMultipartPartIsAClientError() throws Exception {
+        MvcResult noFile = mockMvc.perform(multipart(UPLOAD).param("title", "No file")).andReturn();
+        assertEquals(400, noFile.getResponse().getStatus());
+        assertDocumentedErrorBody(read(noFile), 400);
+
+        MvcResult noTitle = mockMvc.perform(multipart(UPLOAD)
+                        .file(file(uniqueContent("no-title"))))
+                .andReturn();
+        assertEquals(400, noTitle.getResponse().getStatus());
+        assertDocumentedErrorBody(read(noTitle), 400);
+    }
+
+    // 400 not 415: the multipart params fail to resolve before content-type negotiation.
+    @Test
+    void aJsonBodyIsAClientErrorNotAServerError() throws Exception {
+        MvcResult result = mockMvc.perform(post(UPLOAD)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andReturn();
+
+        assertEquals(400, result.getResponse().getStatus());
+        assertDocumentedErrorBody(read(result), 400);
+    }
+
+    @Test
+    void theWrongHttpMethodIsRejectedWithTheDocumentedBody() throws Exception {
+        for (String path : new String[]{UPLOAD, VERIFY}) {
+            MvcResult result = mockMvc.perform(get(path)).andReturn();
+            assertEquals(405, result.getResponse().getStatus(),
+                    "GET " + path + " must answer 405, not a server error");
+            assertDocumentedErrorBody(read(result), 405);
+        }
+    }
+
 
     @Test
     void verifyFindsAPreviouslyTimestampedDocument() throws Exception {
@@ -246,7 +282,6 @@ class ApiContractTest {
         assertDocumentedErrorBody(read(result), 404);
     }
 
-    // ------------------------------------------------------------------ CORS
 
     @Test
     void theConfiguredOriginIsAllowedAndOthersAreRefused() throws Exception {
@@ -281,9 +316,7 @@ class ApiContractTest {
         assertEquals(ALLOWED_ORIGIN, result.getResponse().getHeader("Access-Control-Allow-Origin"));
     }
 
-    // ------------------------------------------------------------------ shape
 
-    /** The README promises every error carries status, error and message. */
     private void assertDocumentedErrorBody(Map<String, Object> body, int expectedStatus) {
         assertEquals(expectedStatus, ((Number) body.get("status")).intValue());
         assertNotNull(body.get("error"), "error responses must carry an 'error' field");
