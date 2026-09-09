@@ -56,7 +56,7 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         return ResponseEntity.status(status).body(payload(status, message));
     }
 
-    private Map<String, Object> payload(HttpStatus status, String message) {
+    static Map<String, Object> payload(HttpStatus status, String message) {
         return Map.of(
                 "timestamp", Instant.now().toString(),
                 "status", status.value(),
