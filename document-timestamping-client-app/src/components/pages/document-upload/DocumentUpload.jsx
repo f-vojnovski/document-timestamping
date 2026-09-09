@@ -215,17 +215,20 @@ const DocumentUpload = () => {
               <div className="card-body"></div>
               <h3 className="text-primary">Driver code</h3>
               <p>
-                This is a driver code written in Java. You
-                can use it to prove that your document
-                existed in its current state on a given
-                date.
+                This is a driver code written in Java. Run it
+                against your document with{" "}
+                <code>java com.ib.Main your-file.pdf</code> and
+                it reports whether the document still matches
+                the target hash, and whether the signature over
+                that hash is valid.
               </p>
               <CodeDisplay
                 code={generateDriverCode(
                   response.encryptedHash,
                   response.publicKey,
                   response.targetHash,
-                  response.signatureAlgorithm
+                  response.signatureAlgorithm,
+                  response.timestamp
                 )}
               />
             </div>
@@ -247,13 +250,6 @@ const DocumentUpload = () => {
                   response.timestamp
                 )}
               />
-              <p className="mb-0">
-                Run <strong>ChecksumGenerator</strong> first,
-                then <strong>Main</strong>. The
-                document + timestamp hash printed by the
-                first must match the target hash the second
-                verifies.
-              </p>
             </div>
           </div>
         )}
